@@ -1,28 +1,69 @@
 
 library(ggplot2)
 library(gbm)
-
+setwd("Documents/USAdiabetesbycounty.csv/")
 # remove all objects
 rm(list = ls(all.names = TRUE))
-mydata <- read.csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv")
-head(mydata)
-str(mydata)
-summary(mydata)
-hist(mydata$cases,100)
+# read the live data
+casedata <- read.csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv")
+head(casedata)
+str(casedata)
+# fix the date column
+casedata$date<- as.Date(casedata$date)
+summary(casedata)
+str(casedata)
+hist(casedata$cases,100)
 
 #compute death rate
-mydata$deathrate<-mydata$deaths / mydata$cases
-hist(mydata$deathrate,100)
+casedata$deathrate<-casedata$deaths / casedata$cases
+#check it
+hist(casedata$deathrate,100)
+# create state - county compund variable
+casedata$statecounty<-paste0(casedata$state, "_", casedata$county)
 
-#CHECK the classes of each column
-sapply(mydata,class)
+# work on understanding the course of the cases for each county:
 
-# note that some of the integer columns have been imported as integers - convert these to factors:
-#mydata$fips<-as.factor(mydata$fips)
+#1. order the dataset by county and by date
+casedata<-casedata[order(casedata$statecounty,casedata$date),]
+#2. get the fist date for each one using "by()"
+firstdaterows<-by(casedata, casedata$statecounty, head, n=1)
+#3. make it a data frame
+firstdf<-do.call("rbind", as.list(firstdaterows))
+# keep only the statecounty adn the dateoffirstcase cols
+firstdf<-firstdf[,c(1,8)]
+#4. Keep only the statecounty and firstdatecols
+firstdf1<-as.data.frame(cbind(firstdf$statecounty ,firstdf$date))
+names(firstdf1)<-c("statecounty","dateoffirstcase")
+str(firstdf1)
+firstdf1$dateoffirstcase<-as.Date(as.numeric(firstdf1$dateoffirstcase))
+#now left join that on
+casedata3<-merge(casedata,firstdf,by = "statecounty",all.x = TRUE)
+# now can compute the dayse since first case
+str(casedata3)
+casedata3$dayssince1case<-as.integer(casedata3$date.x - casedata3$date.y)
+hist(casedata3$dayssince1case)
+#create a data frame with stats for 7 and 14 days after first case only
+c7<-casedata3[casedata3$dayssince1case==7,]
+c10<-casedata3[casedata3$dayssince1case==10,]
+c14<-casedata3[casedata3$dayssince1case==14,]
+
+# rename the colnames for uniqueness
+colnames(c7)
+names(c7)[c(6,7)]<-c("cases.at.7.days","deaths.at.7.days")
+colnames(c10)
+names(c10)[c(6,7)]<-c("cases.at.10.days","deaths.at.10.days")
+colnames(c14)
+names(c14)[c(6,7)]<-c("cases.at.14.days","deaths.at.14.days")
+
+# merge the two together
+ctemp<-merge(c7[,c(1,3,4,5,6,7)],c10[,c(1,6,7)],by = "statecounty",all.x = TRUE)
+c7.14<-merge(ctemp,c14[,c(1,6,7)],by = "statecounty",all.x = TRUE)
+c7.14$c10overc7<-c7.14$cases.at.10.days / c7.14$cases.at.7.days
+hist(c7.14$c10overc7,50)
 
 
 
-# get the population data
+# get the population data from US census
 mypop<-read.csv("https://www2.census.gov/programs-surveys/popest/datasets/2010-2018/counties/asrh/cc-est2018-alldata.csv")
 # The key for AGEGRP is as follows: 0 = Total
 # 1 = Age 0 to 4 years
@@ -50,27 +91,50 @@ mypop<-read.csv("https://www2.census.gov/programs-surveys/popest/datasets/2010-2
 # 10 = 7/1/2017 population estimate 11 = 7/1/2018 population estimate
 
 colnames(mypop)
-
-# only need to keep the first 10 cols
+head(mypop)
+# only need to keep the first 10 cols - only interested in the total male and female pops for now
 mypop<-mypop[,1:10]
 
 #and only need to keep the rows corresponding to the most recent population estimate 
 # (i.e. year  = 11)
 mypop<-mypop[mypop$YEAR==11,]
-#create a hybrid state - county name
+#create a hybrid state - county name to assist with the pivot
 mypop$statecounty<-paste0(mypop$STNAME,"_",mypop$CTYNAME)
+
+
+# create a new variable to calculate the proportion of those over 60 in each county
+#start by assigning each age group to one of those two buckes
+mypop$under60<-ifelse(mypop$AGEGRP<13,"<60",">=60")
+# aggregate over that col
+a1<-aggregate(mypop$TOT_POP,list(mypop$statecounty,mypop$under60),FUN = sum)
+# name the variables
+names(a1)<-c("statecounty", "indicator", "peopleover60")
+#keep only the data for the number of people over 60
+a1<-a1[a1$indicator==">=60",]
+# Get the total pops rows only so we can join on and compute proportions
+totpop<-mypop[mypop$AGEGRP==0,]
+a2<-merge(a1,totpop[,c("statecounty","TOT_POP")],by =  "statecounty", all.x = TRUE)
+a2$propover60 = a2$peopleover60 / a2$TOT_POP
+hist(a2$propover60)
+
+# now join that data back onto the main mypop table
+mypop<-merge(mypop, a2[,c(1,3,5)], by = "statecounty", all.x = TRUE)
+
+
 colnames(mypop)
 #now need to pivot out the male and female columns
-mypop_males<-reshape(mypop[,c(11,7,9)], idvar = c("statecounty"), timevar = "AGEGRP", direction = "wide")
-mypop_females<-reshape(mypop[,c(11,7,10)], idvar = c("statecounty"), timevar = "AGEGRP", direction = "wide")
+mypop_males<-reshape(mypop[,c(1,8,10)], idvar = c("statecounty"), timevar = "AGEGRP", direction = "wide")
+mypop_females<-reshape(mypop[,c(1,8,11)], idvar = c("statecounty"), timevar = "AGEGRP", direction = "wide")
 
 # rejoin these back onto the mypop data
 head(mypop)
-mypopspine = unique(mypop[,c(1,2,3,4,5,11)])
+colnames(mypop)
+# get the data "spine" - only keep the unique rows for the selected colums
+mypopspine = unique(mypop[,c(1,3,4,5,13,14)])
+# merge males population data onto that
 q1<-merge(mypopspine,mypop_males,by.x = "statecounty", by.y = "statecounty")
 colnames(q1)
-# compute age group proprtions as prop of totals
-
+# compute age group proprtions as prop of totals for MALES
 q1$TOT_MALE.1p<-q1$TOT_MALE.1 / q1$TOT_MALE.0
 q1$TOT_MALE.2p<-q1$TOT_MALE.2 / q1$TOT_MALE.0
 q1$TOT_MALE.3p<-q1$TOT_MALE.3 / q1$TOT_MALE.0
@@ -90,6 +154,7 @@ q1$TOT_MALE.16p<-q1$TOT_MALE.16 / q1$TOT_MALE.0
 q1$TOT_MALE.17p<-q1$TOT_MALE.17 / q1$TOT_MALE.0
 q1$TOT_MALE.18p<-q1$TOT_MALE.18 / q1$TOT_MALE.0
 
+#do the same for the sheilas
 q2<-merge(q1,mypop_females,by.x = "statecounty", by.y = "statecounty")
 q2$TOT_FEMALE.1p<-q2$TOT_FEMALE.1 / q2$TOT_FEMALE.0
 q2$TOT_FEMALE.2p<-q2$TOT_FEMALE.2 / q2$TOT_FEMALE.0
@@ -114,8 +179,25 @@ q2$TOT_FEMALE.18p<-q2$TOT_FEMALE.18 / q2$TOT_FEMALE.0
 mypop2<-q2[,c(1,2,3,4,5,6,grep("p", colnames(q2)))]
 # create fips code for mypop2 to join on
 mypop2$fips<-mypop2$STATE*1000 + mypop2$COUNTY
+
+# build a PCA model on these data
+# model<- princomp(mypop2[,7:42], cor = TRUE)
+# summary(model) # first 4 components account for 80% of the variation
+# barplot(model$loadings[,1], xlab = names(mypop2[,7:42]), las =2,cex.names  = 0.7)
+# barplot(model$loadings[,2])
+# barplot(model$loadings[,3])
+# barplot(model$loadings[,4])
+# The output from the PCA model shows we 
+# really only need age groups 14 and 6 - i.e. 25-29 and 60-65 props
+# as these explain most of the variation
+
+colnames(mypop2)
+#define columns to keep
+colstokeep = c("fips","peopleover60","propover60","TOT_MALE.6p","TOT_MALE.14p","TOT_FEMALE.6p","TOT_FEMALE.14p")
+
 # join onto the coronavirus response data
-mypop3<-merge(mydata,mypop2,by = "fips", all.x = TRUE)
+mypop3<-merge(c7.14,mypop2[,colstokeep],by = "fips", all.x = TRUE)
+head(mypop3)
 
 # Get the diabetes data per county
 diabdata<-read.csv("https://raw.githubusercontent.com/dranthonymaher/handycode/master/diabetesbycounty.csv")
@@ -123,143 +205,120 @@ diabdata<-read.csv("https://raw.githubusercontent.com/dranthonymaher/handycode/m
 mypop4<-merge(mypop3,diabdata,by.x = "fips", by.y = "FIPS",all.x = TRUE)
 
 #need to add hypertension data later
-# get data for latest date
-mydata2<-mypop4[mypop4$date=="2020-03-27",]
-
-plot(mydata2$Prevalence..2012..Males,mydata2$cases)
-myglm
+hypert.data<-read.csv("hypertensionbycounty.csv")
+head(hypert.data)
+mypop5<-merge(mypop4,hypert.data[,c("FIPS","Total.male.hypert","total.female.hypert")],by.x = "fips", by.y = "FIPS",all.x = TRUE)
 
 
-
-
-
-# extract list of variables that are factors
-# listfactors<-names(Filter(is.factor, mydata))
-# extract list of variables that are numeric / integers
-# listnum<-names(Filter(is.numeric, mydata))
-
-
-# Have a quick look at the summaries of all the variables
-summary(mydata)
-
-source("/Users/anthonymaher/Documents/R stuff/plotfactor.R")
-plotfactor(1,mydata)
-plotfactor(2,mydata)
-plotfactor(3,mydata)
-plotfactor(4,mydata)
-plotfactor(5,mydata)
-plotfactor(6,mydata)
-plotfactor(7,mydata)
-plotfactor(8,mydata)
-plotfactor(9,mydata)
-plotfactor(10,mydata)
-plotfactor(11,mydata)
-plotfactor(12,mydata)
-plotfactor(13,mydata)
-plotfactor(14,mydata)
-plotfactor(15,mydata)
-plotfactor(16,mydata)
-
-
-#consolidate the type of contact
-mydata$quarter<-as.factor(ifelse(mydata$month=="jan", "q1"
-                                 ,ifelse(mydata$month=="feb", "q1"
-                                         ,ifelse(mydata$month=="mar", "q1"
-                                                 ,ifelse(mydata$month=="apr", "q2"
-                                                         ,ifelse(mydata$month=="may", "q2"
-                                                                 ,ifelse(mydata$month=="jun", "q2"
-                                                                         ,ifelse(mydata$month=="jul", "q3"
-                                                                                 ,ifelse(mydata$month=="aug", "q3"
-                                                                                         ,ifelse(mydata$month=="sep", "q3"
-                                                                                                 ,ifelse(mydata$month=="oct", "q4"
-                                                                                                         ,ifelse(mydata$month=="nov", "q4"
-                                                                                                                 ,ifelse(mydata$month=="dec", "q4","none")))))))))))))
-
-# check call stats
-calllengths<-mydata$duration[mydata$campaign == 1]
-summary(calllengths)
-#median is 184 - use this a benchmark
-
-mydata$dur1<-as.factor(ifelse(mydata$duration==0,"NoContact",
-                              ifelse(mydata$duration<=180,"short","long")))
-
-mydata$contacttype<-as.factor(paste0(mydata$contact,"_",mydata$quarter,"_",mydata$dur1))
-
-
-summary(mydata)
-# remove the rows where customer was in defauls as n=3 for yes
-mydata<-mydata[mydata$default!="yes",]
-
-# data categorisation and feature creation
-#after checking, we see that those in the labour force have different response rates
-# to those not in the labor force
-#but students will be qualitatively different to retirees
-#so lets group up those in the labor force
-mydata$job2<-as.factor(ifelse(mydata$job=="unemployed", "unemployed"
-                    ,ifelse(mydata$job=="retired", "retired"
-                            ,ifelse(mydata$job=="student", "student"
-                            ,"inlaborforce"))))
-mydata$job3<-as.factor(ifelse(mydata$job=="retired", "NILF"
-                                      ,ifelse(mydata$job=="student", "NILF"
-                                              ,"inlaborforce")))
-
-mydata$age1<-as.factor(ifelse(mydata$age<=25,"a.lt 25",
-                              ifelse(mydata$age<=60,"b. 25-60","c. over 60")))
-
-mydata$edu1<-as.factor(ifelse(mydata$education=="professional.course","tertiary",
-                              ifelse(mydata$education=="university.degree","tertiary","lt.tertiary")))
-
-str(mydata)
-plotfactor(20,mydata)
-plotfactor(21,mydata)
-plotfactor(22,mydata)
-plotfactor(23,mydata)
-
+# MODELLING ---------------------------------------------------------------
+mydata<-mypop5
+  
 #decide which cols to include in the model
 cn<-colnames(mydata)
+cn
 write.csv(cn,"cn.csv")
 
 
-mydata_old<-mydata
+colstopred = c(
+  #"fips",
+  #"statecounty",
+  #"county",
+  #"state",
+  "cases.at.7.days",
+  "deaths.at.7.days",
+  "cases.at.10.days",
+  "deaths.at.10.days",
+  #"cases.at.14.days",
+  #"deaths.at.14.days",
+  "c10overc7",
+  #"peopleover60",
+  "propover60",
+  #"TOT_MALE.6p",
+  "TOT_MALE.14p",
+  #"TOT_FEMALE.6p",
+  "TOT_FEMALE.14p",
+  #"Location",
+  "Prevalence..2012..Both.Sexes",
+  "Prevalence..2012..Females",
+  "Prevalence..2012..Males",
+  "Total.male.hypert"
+  , "total.female.hypert"
+  
+)
+# go to the folder where you just created "cn.csv". Add a column called "toinclude". 
+# St to 1 all the cols to include, and 0 the rest.
 
-#split the data 
-set.seed(1223)
+#split the data into training and test set
+#set.seed(1223)
 holdoutrows<-sample(c(1:length(mydata[,1])),length(mydata[,1])*0.2)
 keeprows<-setdiff(c(1:length(mydata[,1])),holdoutrows)
 length(holdoutrows)+length(keeprows)
-intersect(holdoutrows,keeprows)
+intersect(holdoutrows,keeprows) # this should be empty
 
+# read in the metadata columns to include in the model
+trainset<-mydata[keeprows,]
+testset<-mydata[holdoutrows,]
 
+# add the response
+# define response:
+resp<-"cases.at.14.days"
+#trainresp<-mydata[keeprows,which(colnames(mydata)==resp)]
+#testresp<-mydata[holdoutrows,which(colnames(mydata)==resp)]
 
-cnnew<-read.csv("cnnew2.csv")
-trainset<-mydata[keeprows,cnnew$model==1]
-testset<-mydata[holdoutrows,cnnew$model==1]
-
-trainset<-cbind(mydata$r1[keeprows],trainset)
-testset<-cbind(mydata$r1[holdoutrows],testset)
+#trainset<-as.data.frame(cbind(trainresp,trainset))
+#testset<-as.data.frame(cbind(testresp,testset))
 
 #which(colnames(trainset)=="r1")
-names(trainset)[1]<-"r1"
-names(testset)[1]<-"r1"
+#names(trainset)[1]<-"r1"
+#names(testset)[1]<-"r1"
+trainset<-trainset[complete.cases(cbind(trainset[,resp],trainset[,colstopred])),]
+testset<-testset[complete.cases(cbind(testset[,resp],testset[,colstopred])),]
+
+
 #generate a formula for the model
-mform<-as.formula(paste("r1 ~ ",paste(colnames(trainset)[c(2:13)],collapse = "+")
-                        #,"+housing*marital"
-                        #,"+month*duration"
-                        #,"+age*contact"
-                        ))
+mform<-as.formula(paste(resp,"~",paste(colstopred,collapse = "+")
+))
 #check it
 mform
 
-trainset$contacttype<-relevel(trainset$contacttype, ref = "NA_NA_NoContact")
 #try a glm first
-myglm <- glm(mform, data = trainset, family = binomial(link = "logit"))
+myglm <- glm(mform, data = trainset, family = poisson(link = "log"))
 summary(myglm)
+
+
+# PREDICTION --------------------------------------------------------------
+# generate response vector for test set and compare to actuals
+pred=predict(myglm,newdata = testset,type=c("response"))
+testset$pred=pred
+testset$diffs = testset$pred - testset[,resp]
+s1<-sum(testset$diffs^2) / length(testset$diffs)
+plot(testset[,resp],testset$pred, main = paste0("sumsq = ",s1),xlim = c(0,100),ylim = c(0,100))
+abline(0,1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 mygbm<-gbm(
   mform,
   data = trainset,
-  distribution="bernoulli",
-  n.trees = 1000,
+  distribution="poisson",
+  n.trees = 3000,
   shrinkage = 0.01,
   n.minobsinnode = 50,
   interaction.depth = 3,
@@ -268,9 +327,6 @@ mygbm<-gbm(
   cv.folds = 7,
   verbose = TRUE
 )
-summary(mygbm)
-best.iter <- gbm.perf(mygbm, plot.it = TRUE , oobag.curve = FALSE,method="test")
-best.iter
 best.iter <- gbm.perf(mygbm, plot.it = TRUE , oobag.curve = FALSE,method="cv")
 best.iter
 
@@ -280,69 +336,8 @@ q1<-summary(mygbm, n.trees = best.iter
 )
 q1
 
-library(ROCR)
 #prediction
-prob=predict(myglm,newdata = testset,type=c("response"))
-testset$prob=prob
-pred<-prediction(prob,testset$r1)
-perf <- performance(pred, measure = "tpr", x.measure = "fpr")     
-plot(perf, col=rainbow(7), main="ROC curve ", xlab="Specificity", 
-     ylab="Sensitivity")    
-abline(0, 1) #add a 45 degree line 
-
-
-
-percentiles<-quantile(testset$prob, probs = seq(0, 1, by= 0.01)) # decile
-plot(percentiles)
-myp<-ecdf(percentiles)(testset$prob)
-testset$myp<-myp
-plot(testset$myp,testset$prob)
-aprob<-aggregate(testset$r1,list(testset$myp),FUN=mean, na.rm = TRUE)
-
-# png("pvo for hyp1.png")
-plot(percentiles, ylim = c(0,1))
-lines(aprob$x)
-# dev.off()
-
-#check the partial dependence plots
-plot(mygbm, i.var = 1, lwd = 2, col = "blue", main = "")
-plot(mygbm, i.var = 10, lwd = 2, col = "blue", main = "", type = "response")
-plot(mygbm, i.var = 11, lwd = 2, col = "blue", main = "", type = "response")
-
-#write.csv(q1,"gbmresults_all20190722.csv")
-
-# simulation - set 17 new ones up with new type of contact
-# generate new data set for scoring
-con1<-as.list(levels(mydata$contacttype))
-
-groupB<-mydata[mydata$campaign==0,cnnew$model==1]
-
- #i<-10
-for (i in 1:length(levels(mydata$contacttype))){
-groupB$contacttype<-con1[[i]]
-#now predict new values
-prob=predict(myglm,newdata = groupB,type=c("response"))
-groupB$prob=prob
-Sys.sleep(0.1)
-print(groupB$contacttype[1])
-names(groupB)[length(names(groupB))]<-paste0("prob_",con1[[i]])
-}
-
-#which is greatest?
-colnames(groupB)
-for (i in 1:length(groupB[,])){
-groupB$maxs3[i]<-names(which.max(groupB[i,c(13:29)]))
-}
-table(groupB$maxs3)
-matplot(t(as.vector(groupB[1000:2000,c(13:29)])), type = 'l')
-
-# which is biggest uplift from col 21?
-groupB$uplift_c_q1_long<-groupB$prob_cellular_q1_long-groupB$prob_NA_NA_NoContact
-
-
-
-
-
-
-
-
+predgbm=predict(mygbm,newdata = testset,type=c("response"))
+testset$predgbm=predgbm
+plot(testset$r1,testset$predgbm) #,xlim = c(0,100),ylim = c(0,100))
+abline(0,1)
