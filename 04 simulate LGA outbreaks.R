@@ -1,7 +1,7 @@
 
 
 # get ABS data on industry employment by small area
-nswindustrybyLGA<-read.csv("C:/Users/amaher2/KPMG/AU - Data Office - Data sets/SA2_INDUSTRY_LEVEL1_GEOtoLGA.csv")
+nswindustrybyLGA<-read.csv(paste0(mywd,"SA2_INDUSTRY_LEVEL1_GEOtoLGA.csv"))
 head(nswindustrybyLGA)
 # summarise by LGA
 lgainssumm<-aggregate(nswindustrybyLGA$Manufacturing, by = list(nswindustrybyLGA$LGAcode), FUN = sum)
@@ -15,15 +15,15 @@ head(cacordered2)
 # Run the (uncontolled) outbreak simulator for every LGA in NSW----------------------------------------------
 
 lgasim<-NULL
-for (i in 1:length(cacordered2[,1])){
-  myn<-cacordered2$numManufact[i]
-  myi<-cacordered$ActiveCases[i]
-  a1<-outbreaksimulator(myn,myi)
+for (i in 1:length(cacordered2[, 1])) {
+  myn <- cacordered2$numManufact[i]
+  myi <- cacordered$ActiveCases[i]
+  a1 <- outbreaksimulator(myn, myi)
   # Sys.sleep(0.01)
   # print(a1$totcases) - something strange going on with Randwick
-  a1$LGAname<-cacordered$LGAname[i]
-  a1$LGAcode<-cacordered$LGAcode[i]
-  lgasim<-rbind(lgasim,a1)
+  a1$LGAname <- cacordered$LGAname[i]
+  a1$LGAcode <- cacordered$LGAcode[i]
+  lgasim <- rbind(lgasim, a1)
 }
 head(lgasim)
 

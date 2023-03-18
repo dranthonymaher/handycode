@@ -1,10 +1,21 @@
 #Anthony Maher
 # script to build the hospitalisation projector spreadsheet tool for NSW
 
+
+# Clear console and set up directory --------------------------------------
+
+#close all plot windows
 dev.off()
 #remove everything from the console
 rm(list = ls())
-setwd("C:/Users/amaher2/OneDrive - KPMG/Documents/covid19/")
+
+# enter your own username here
+username<-"amaher2"
+# define the working directory - this is the loaction of the data sets on the Teams site
+mywd<-paste0("C:/Users/",username,"/KPMG/AU - Data Office - Data sets/")
+#set the working directory
+setwd(mywd)
+
 
 # Build the hospitalisation projector -------------------------------------
 
@@ -94,7 +105,7 @@ nsw_lga_age_tot_long$proppop<-nsw_lga_age_tot_long$numberofpeople / nsw_lga_age_
 # Age-based hospitalisation rates -----------------------------------------
 # import the data table from that gives info about hosp rates by age groups. This comes from:
 # https://www.cdc.gov/mmwr/volumes/69/wr/mm6912e2.htm#T1_down
-hosp<-read.csv("C:/Users/amaher2/OneDrive - KPMG/Documents/covid19/hospitalisationandicubyagegroup.csv")
+hosp<-read.csv(paste0(mywd,"hospitalisationandicubyagegroup.csv"))
 head(hosp,30)
 # plot it
 dev.off()
@@ -119,6 +130,6 @@ names(agg.hicu)<-c("LGAcode","LGAname","hospfactor","icufactor")
 head(agg.hicu)
 
 # write the data to csv
-write.csv(nsw_lga_hosprates,"C:/Users/amaher2/OneDrive - KPMG/Documents/covid19/covidLGAprojector.csv")
-write.csv(agg.hicu,"C:/Users/amaher2/OneDrive - KPMG/Documents/covid19/casestohospbylga.csv")
+write.csv(nsw_lga_hosprates,paste0(mywd,"covidLGAprojector.csv"))
+write.csv(agg.hicu,paste0(mywd,"casestohospbylga.csv"))
 

@@ -97,6 +97,7 @@ lines(a1$time,a1$D,col = "green" ); text(60,1700,"Number dead", col = "green")
 points(astactuals$time,astactuals$ConfirmedCases,col = "orange")
 points(astactuals$time, astactuals$ActiveCases, col = "red")
 
+head(a1)
 
 
 # Construct the outbreak simulator function -------------------------------
@@ -142,3 +143,4 @@ outbreaksimulator<-function(n,ni){
   return(a1)
   
 }
+

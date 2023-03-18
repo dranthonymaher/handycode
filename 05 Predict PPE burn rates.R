@@ -2,10 +2,10 @@
 # predict ppe burn rates --------------------------------------------------
 
 # get the data on hospital locations
-hospstockdata<-read.csv("C:/Users/amaher2/KPMG/AU - Data Office - Data sets/hospital stocks data.csv")
+hospstockdata<-read.csv(paste0(mywd,"hospital stocks data.csv"))
 head(hospstockdata)
 # join on LGA
-pctolgamap<-read.csv("C:/Users/amaher2/KPMG/AU - Data Office - Data sets/postcode to LGA map.csv")
+pctolgamap<-read.csv(paste0(mywd,"postcode to LGA map.csv"))
 head(pctolgamap)
 
 hospstockdata2<-merge(hospstockdata,pctolgamap,by.x = "postcode", by.y = "Postcode", all.x = TRUE)
@@ -18,7 +18,7 @@ names(hopsstockLGA)<-c("LGAname","Gowns", "N95masks")
 head(hopsstockLGA)
 
 # get the PPE burn rate calucaltor data
-ppeburnrates<-read.csv("C:/Users/amaher2/KPMG/AU - Data Office - Data sets/PPEcalculatorEbola.csv")
+ppeburnrates<-read.csv(paste0(mywd,"PPEcalculatorEbola.csv"))
 ppeburnrates
 
 # according to PPE for Ebola calculator, need 24 Gowns per patient per day and 16 N95 Masks per patient per day
@@ -29,10 +29,9 @@ lgasim3<-merge(lgasim2,hopsstockLGA,by = "LGAname",all.x = TRUE)
 head(lgasim3)
 lgasim3<-lgasim3[with(lgasim3,order(LGAname,time)),]
 head(lgasim3)
-lgasim3$cumI<-(lgasim3$I+lgasim3$R)*(lgasim3$hospfactor+lgasim3$icufactor)
-lgasim3$gownuse<-pmax(0,lgasim3$Gowns-24*lgasim3$cumI)
-lgasim3$maskuse<-pmax(0,lgasim3$N95masks-16*lgasim3$cumI)
-head(lgasim3,50)
+lgasim3$gownuse<-pmax(0,lgasim3$Gowns-24*lgasim3$totcases*lgasim3$hospfactor)
+lgasim3$maskuse<-pmax(0,lgasim3$N95masks-16*lgasim3$totcases*lgasim3$hospfactor)
+head(lgasim3,10)
 
 
 

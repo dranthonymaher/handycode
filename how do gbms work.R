@@ -1,28 +1,27 @@
-
+rm(list = ls())
 library(gbm)
 set.seed(123)
 
 # set number of samples, n
-n<-20000
+n<-200
 
 # create education dataset - want to try to predict score on test
 #student info
-iq<-rnorm(n,100,10)
-studytime<-rpois(n,2)
+iq<-rnorm(n,100,10);
+hist(iq)
+studytime<-rpois(n,10)
+hist(studytime)
 seifa<-rnorm(n,100,10)
+hist(seifa)
+#define the function determining the score achieved
 score<-iq*0.6+studytime*0.8-0.6*seifa+45+rnorm(n,0,2)
-mean(score)
+hist(score)
+# convert to a bernoulli random variable
 score<- ifelse(score<median(score),0,1)
-
+plot(score)
 df<-as.data.frame(cbind(iq,studytime, seifa,score))
-df$studytime<-as.factor(df$studytime)
 plot(df)
-df$studytime<-relevel(df$studytime,ref="0")
-modelglm<-glm(score~iq+studytime,
-              data = df, family = gaussian )
-summary(modelglm)
-
-
+dev.off()
 # build the first tree
 ntrees<-1
 model<-gbm(score~iq+studytime+seifa,
@@ -37,7 +36,7 @@ print(pretty.gbm.tree(model, i.tree = 1))
 print(pretty.gbm.tree(model, i.tree = 2))
 
 # build trees
-for (i in 1:100) {
+for (i in 1:10) {
   Yhat <- predict(model, newdata = df, n.trees =  model$n.trees, type = "response")
   # calculate least squares error
   lse<-sum((df$score - Yhat)^2)
@@ -63,7 +62,4 @@ for (i in 1:100) {
   Sys.sleep(0.1)
 }
 getwd()
-
-
-
 

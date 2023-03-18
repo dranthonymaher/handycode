@@ -2,7 +2,7 @@
 # run all
 
 # read in the historical NSW cases data
-nswoldcasedata<-read.csv("C:/Users/amaher2/KPMG/AU - Data Office - Data sets/NSWcovidLGAstable5dates_v3.csv")
+nswoldcasedata<-read.csv(paste0(mywd,"NSWcovidLGAstable5dates_v3.csv"))
 head(nswoldcasedata)
 # convert to long format
 n2<-reshape(nswoldcasedata,   idvar = c("LGAname"), 
@@ -19,11 +19,10 @@ n2$Date<-as.Date(substr(n2$Date,2,100), "%d.%m.%Y")
 head(n2)
 
 #read in daily NSW case data from Mo
-nswcasedata<-read.csv("C:/Users/amaher2/KPMG/AU - Data Office - Data sets/NSW_COVID_DATA18052020.csv")
-#                      ,colClasses=c("Date",NA, NA, NA))
+nswcasedata<-read.csv(paste0(mywd,"NSW_COVID_DATA18052020.csv"))
 head(nswcasedata)
 
-# fix the date
+# fix the date, restructure and fix names
 nswcasedata$Date<-as.Date(nswcasedata$Date, "%m/%d/%Y")
 head(nswcasedata)
 n3<-data.frame(nswcasedata$LGA, as.Date(nswcasedata$Date), nswcasedata$Cases_positive)
@@ -31,10 +30,9 @@ names(n3)<-names(n2)
 head(n2)
 # combine them
 rnew<-as.data.frame(rbind(n2,n3))
-str(rnew)
 
 # read in the other data set to fix up the lack of codes for LGA in this data!!
-fixer<-read.csv("C:/Users/amaher2/KPMG/AU - Data Office - Data sets/LGA_outbreak_Simulator.csv")
+fixer<-read.csv(paste0(mywd,"LGA_outbreak_Simulator.csv"))
 head(fixer)
 f1<- unique(fixer[,c(2,3)])
 head(f1)
@@ -56,7 +54,7 @@ plot(nswcasedata2$Date, nswcasedata2$Cases_positive, main = "Cumulative cases in
 #min(nswcasedata2$Date) # ok it's the 26th of march
 # generate a list of every date available:
 datelist<-seq(min(nswcasedata2$Date),max(nswcasedata2$Date), by = 1)
-# generate a grid of the cartesian product of those two variables
+# generate a grid of the cartesian product of those two variables - this will be the "spine" that we can join the rest on to
 spine<-as.data.frame(expand.grid(unique(nswcasedata2$LGAcode),datelist, KEEP.OUT.ATTRS = FALSE))
 names(spine)<-c("LGAcode", "Date")
 nswcasedata3<-merge(spine,nswcasedata2, by = c("LGAcode", "Date"), all.x = TRUE)
@@ -66,14 +64,16 @@ head(nswcasedata3)
 nedd4<-NULL
 mycode<-unique(nswcasedata3$LGAcode)
 
-for (i in 1:length(unique(nswcasedata3$LGAcode))){
-newd1<-nswcasedata3[nswcasedata3$LGAcode == mycode[i],]
-newd2<-newd1[complete.cases(newd1$LGAcode),]
-newd3<-newd2[!duplicated(newd2$Date),]
-print(paste0(i," ",mycode[i]))
-x1<-approx(newd3$Date, newd3$Cases_positive, xout =datelist)
-newd3$newc<-round(x1$y)
-nedd4<-rbind(nedd4,newd3)
+for (i in 1:length(unique(nswcasedata3$LGAcode))) {
+  newd1 <- nswcasedata3[nswcasedata3$LGAcode == mycode[i], ]
+  newd2 <- newd1[complete.cases(newd1$LGAcode), ]
+  newd3 <- newd2[!duplicated(newd2$Date), ]
+  # print(paste0(i," ",mycode[i]))
+  if (length(newd3[, 1]) == 0)
+    break
+  x1 <- approx(newd3$Date, newd3$Cases_positive, xout = datelist)
+  newd3$newc <- round(x1$y)
+  nedd4 <- rbind(nedd4, newd3)
 }
 
 # assume that the infection is active for 12 days
