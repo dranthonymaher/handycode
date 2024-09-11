@@ -1,0 +1,24 @@
+
+dev.off()
+par(mar = c(5, 3, 0, 0))
+b1<-barplot(result, ylim = c(0,max(result)*1.1),
+            xlab="",ylab = "Number of claims",names.arg = ""
+            
+)
+grid(NA,NULL, lwd=0.5,lty = 1, col = "gray") 
+b1<-barplot(result, ylim = c(0,max(result)*1.1),
+            xlab="",ylab = "Number of claims",names.arg = ""
+            ,col = 'gray'#commpallet
+            ,xaxt = "n" , yaxt = "n"
+            ,add=TRUE
+)
+text(b1,result+max(result)*0.05,paste0(as.character(result)),col = 'gray')
+text(b1,-0.2,names(result),cex =0.71,srt = 45,pos=2,col='red', xpd=NA)
+
+a1mean<-aggregate(actuals$claim, by=list(actuals[,i]), FUN=mean, na.rm = TRUE)
+a1mean
+lines(x = b1,y = a1mean$x/max(a1mean$x)*max(result), col = 'red', lwd = 2)
+text(x = b1,y = a1mean$x/max(a1mean$x)*max(result),round(a1mean$x), col = 'red',pos = 3)
+
+dev.copy(png,paste0("thispuic_",myvar,".png"),width = 1.1*450, height = 0.9*350);dev.off()
+
