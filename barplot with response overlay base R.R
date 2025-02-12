@@ -8,11 +8,14 @@
 # from datafram "df"
 # you just need the naems of the columns and it finds the indexes
 
-cn<-colnames(rawdata)
-cn
+barlinechart<-function(myvar,r1,rawdata){
+
+
+# cn<-colnames(rawdata)
+# cn
 # set the column names of interest
-myvar<-"Gender"
-r1<-"QOESAT"
+# myvar<-"Gender"
+# r1<-"QOESAT"
 
 cvarind<-which(colnames(rawdata)==myvar)
 rvarind<-which(colnames(rawdata)==r1)
@@ -41,3 +44,5 @@ lines(x = b1,y = 0.5*a1mean$x/max(a1mean$x)*max(result), col = 'blue', lwd = 2)
 text(x = b1,y = 0.5*a1mean$x/max(a1mean$x)*max(result),round(100*a1mean$x)/100, col = 'blue',pos = 3)
 
 #dev.copy(png,paste0("thispuic_",myvar,".png"),width = 1.1*450, height = 0.9*350);dev.off()
+
+}
